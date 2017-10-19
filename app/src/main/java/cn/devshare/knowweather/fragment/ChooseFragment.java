@@ -70,9 +70,7 @@ public class ChooseFragment extends Fragment {
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        Log.i("start ","fragment1");
         View view = inflater.inflate(R.layout.fragment_choose_area, container, false);
-        Log.i("start ","fragment2");
         titleText = (TextView) view.findViewById(R.id.title_text);
         backButton = (Button) view.findViewById(R.id.back_button);
         listView = (ListView) view.findViewById(R.id.list_view);
@@ -84,7 +82,6 @@ public class ChooseFragment extends Fragment {
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
-        Log.i("start ","activity");
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
@@ -101,6 +98,11 @@ public class ChooseFragment extends Fragment {
                         intent.putExtra("weather_id", weatherId);
                         startActivity(intent);
                         getActivity().finish();
+                    }else if(getActivity() instanceof WeatherActivity){
+                        WeatherActivity weatherActivity= (WeatherActivity) getActivity();
+                        weatherActivity.drawerLayout.closeDrawers();
+                        weatherActivity.swipeRefreshLayout.setRefreshing(true);
+                        weatherActivity.requestWeather(weatherId);
                     }
                 }
             }
@@ -153,7 +155,6 @@ public class ChooseFragment extends Fragment {
         } else {
             int proviceCode = selectedProvice.getProviceCode();
             String url = "http://guolin.tech/api/china/" + proviceCode;
-            Log.i("the city url is",url);
             queryFromServer(url, "city");
         }
     }
@@ -174,7 +175,6 @@ public class ChooseFragment extends Fragment {
             int proviceCode = selectedProvice.getProviceCode();
             int cityCode = selectedCity.getCityCode();
             String url = "http://guolin.tech/api/china/" + proviceCode + "/" + cityCode;
-            Log.i("the couny url is",url);
             queryFromServer(url, "county");
         }
 
