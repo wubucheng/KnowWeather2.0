@@ -27,8 +27,11 @@ import cn.devshare.knowweather.WeatherActivity;
 import cn.devshare.knowweather.db.City;
 import cn.devshare.knowweather.db.County;
 import cn.devshare.knowweather.db.Provice;
+import cn.devshare.knowweather.presenter.AreaPresenter;
+import cn.devshare.knowweather.presenter.IAreaPresenter;
 import cn.devshare.knowweather.util.GsonUtil;
 import cn.devshare.knowweather.util.OkHttpUtil;
+import cn.devshare.knowweather.view.IAreaView;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Response;
@@ -40,7 +43,7 @@ import okhttp3.Response;
  * Author: cheng
  * Create time: 2017/10/17 20:59
  */
-public class ChooseFragment extends Fragment {
+public class ChooseFragment extends Fragment implements IAreaView {
 
     public static final int LEVEL_PROVICE = 0;
     public static final int LEVEL_CITY = 1;
@@ -68,12 +71,18 @@ public class ChooseFragment extends Fragment {
 
     private int currentLevel;
 
+
+    private IAreaPresenter areaPresenter;
+
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_choose_area, container, false);
         titleText = (TextView) view.findViewById(R.id.title_text);
         backButton = (Button) view.findViewById(R.id.back_button);
         listView = (ListView) view.findViewById(R.id.list_view);
+
+        areaPresenter=new AreaPresenter(this);
+
         adapter = new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1, dataList);
         listView.setAdapter(adapter);
         return view;
@@ -102,7 +111,7 @@ public class ChooseFragment extends Fragment {
                         WeatherActivity weatherActivity= (WeatherActivity) getActivity();
                         weatherActivity.drawerLayout.closeDrawers();
                         weatherActivity.swipeRefreshLayout.setRefreshing(true);
-                        weatherActivity.requestWeather(weatherId);
+                        weatherActivity.getWeatherData(weatherId);
                     }
                 }
             }
@@ -122,116 +131,34 @@ public class ChooseFragment extends Fragment {
 
     }
 
-    private void queryProvinces() {
+
+
+    @Override
+    public void queryProvinces() {
         titleText.setText("中国");
         backButton.setVisibility(View.GONE);
-        proviceList = DataSupport.findAll(Provice.class);
-        if (proviceList.size() > 0) {
-            dataList.clear();
-            for (Provice provice : proviceList) {
-                dataList.add(provice.getProviceName());
-            }
-            adapter.notifyDataSetChanged();
-            listView.setSelection(0);
-            currentLevel = LEVEL_PROVICE;
-        } else {
-            String url = "http://guolin.tech/api/china";
-            queryFromServer(url, "province");
-        }
+        areaPresenter.queryProvinces();
     }
 
-    private void queryCities() {
+    @Override
+    public void queryCities() {
         titleText.setText(selectedProvice.getProviceName());
         backButton.setVisibility(View.VISIBLE);
-        cityList = DataSupport.where("provinceid=?", String.valueOf(selectedProvice.getId())).find(City.class);
-        if (cityList.size() > 0) {
-            dataList.clear();
-            for (City city : cityList) {
-                dataList.add(city.getCityName());
-            }
-            adapter.notifyDataSetChanged();
-            listView.setSelection(0);
-            currentLevel = LEVEL_CITY;
-        } else {
-            int proviceCode = selectedProvice.getProviceCode();
-            String url = "http://guolin.tech/api/china/" + proviceCode;
-            queryFromServer(url, "city");
-        }
+        int proviceCode = selectedProvice.getProviceCode();
+        areaPresenter.queryCities(selectedProvice);
     }
 
-    private void queryCounties() {
+    @Override
+    public void queryCounties() {
         titleText.setText(selectedCity.getCityName());
         backButton.setVisibility(View.VISIBLE);
-        countyList = DataSupport.where("cityid=?", String.valueOf(selectedCity.getId())).find(County.class);
-        if (countyList.size() > 0) {
-            dataList.clear();
-            for (County county : countyList) {
-                dataList.add(county.getCountyName());
-            }
-            adapter.notifyDataSetChanged();
-            listView.setSelection(0);
-            currentLevel = LEVEL_COUNTY;
-        } else {
-            int proviceCode = selectedProvice.getProviceCode();
-            int cityCode = selectedCity.getCityCode();
-            String url = "http://guolin.tech/api/china/" + proviceCode + "/" + cityCode;
-            queryFromServer(url, "county");
-        }
-
-
+        int proviceCode = selectedProvice.getProviceCode();
+        int cityCode = selectedCity.getCityCode();
+        areaPresenter.queryCounties(selectedProvice,selectedCity);
     }
 
-    private void queryFromServer(String url, final String type) {
-        showProgressDialog();
-        OkHttpUtil.get(url, new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                e.printStackTrace();
-                getActivity().runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        closeProgressDialog();
-                        Toast.makeText(getContext(),"加载失败",Toast.LENGTH_SHORT).show();
-                    }
-                });
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                String responseText=response.body().string();
-                Log.i("province",responseText);
-                boolean result=false;
-                if("province".equals(type)){
-                    result=GsonUtil.handProviceResponse(responseText);
-                }else if("city".equals(type)){
-                    result=GsonUtil.handleCityResponse(responseText,selectedProvice.getId());
-                }else if("county".equals(type)){
-                    GsonUtil.handleCountyResponse(responseText,selectedCity.getId());
-                }
-                if(result){
-                    Log.i("result","is true");
-                }
-
-                if(result){
-                    getActivity().runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            closeProgressDialog();
-                            if("province".equals(type)){
-                                queryProvinces();
-                            }else if("city".equals(type)){
-                                queryCities();
-                            }else if("county".equals(type)){
-                                queryCounties();
-                            }
-                        }
-                    });
-                }
-            }
-        });
-    }
-
-    private void showProgressDialog() {
+    @Override
+    public void showProgressDialog() {
         if(progressDialog==null){
             progressDialog=new ProgressDialog(getActivity());
             progressDialog.setMessage("正在加载中");
@@ -240,10 +167,44 @@ public class ChooseFragment extends Fragment {
         progressDialog.show();
     }
 
-    private void closeProgressDialog(){
+    @Override
+    public void closeProgressDialog(){
         if(progressDialog!=null){
             progressDialog.dismiss();
         }
     }
 
+    @Override
+    public void showProvince(List<Provice> provices) {
+        dataList.clear();
+        for (Provice provice : proviceList) {
+            dataList.add(provice.getProviceName());
+        }
+        adapter.notifyDataSetChanged();
+        listView.setSelection(0);
+        currentLevel = LEVEL_PROVICE;
+
+    }
+
+    @Override
+    public void showCities(List<City> cities) {
+        dataList.clear();
+        for (City city : cityList) {
+            dataList.add(city.getCityName());
+        }
+        adapter.notifyDataSetChanged();
+        listView.setSelection(0);
+        currentLevel = LEVEL_CITY;
+    }
+
+    @Override
+    public void showCounties(List<County> counties) {
+        dataList.clear();
+        for (County county : countyList) {
+            dataList.add(county.getCountyName());
+        }
+        adapter.notifyDataSetChanged();
+        listView.setSelection(0);
+        currentLevel = LEVEL_COUNTY;
+    }
 }
